@@ -4,10 +4,9 @@ import { sanitizeText } from "../middleware/sanitize.js";
 import { MAX_USER_POSTS_PER_DAY } from "../utils/validators.js";
 import * as cache from "../cache/postCache.js";
 
-// Used for DB reads — device_id included so we can compute is_mine, but it's
-// stripped before the response reaches the client.
+// user_id included so is_mine can be computed — stripped before sending to client
 const FETCH_COLUMNS =
-  "id, author_name, title, content, image_url, category, source, created_at, device_id";
+  "id, author_name, title, content, image_url, category, source, created_at, user_id";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -17,44 +16,40 @@ function countBy(rows, key) {
   return acc;
 }
 
-// Strips device_id, attaches is_mine + liked for each post.
-// One DB query for all liked flags regardless of page size.
-async function buildPublicPosts(rawPosts, deviceId) {
+// Strips user_id, attaches is_mine + liked — one DB query for all liked flags.
+async function buildPublicPosts(rawPosts, userId) {
   if (rawPosts.length === 0) return [];
   const ids = rawPosts.map((p) => p.id);
   const likedSet = new Set();
-  if (deviceId) {
+  if (userId) {
     const { data } = await supabaseAdmin
       .from("likes")
       .select("post_id")
-      .eq("device_id", deviceId)
+      .eq("user_id", userId)
       .in("post_id", ids);
     (data ?? []).forEach((r) => likedSet.add(r.post_id));
   }
-  return rawPosts.map(({ device_id, ...rest }) => ({
+  return rawPosts.map(({ user_id, ...rest }) => ({
     ...rest,
-    liked: likedSet.has(rest.id),
-    is_mine: !!device_id && device_id === deviceId,
+    liked:   likedSet.has(rest.id),
+    is_mine: !!user_id && user_id === userId,
   }));
 }
 
-export async function listPosts({ page = 0, pageSize = 5, category, search, deviceId }) {
+export async function listPosts({ page = 0, pageSize = 5, category, search, userId }) {
   if (cache.isReady()) {
-    // Cache already has stats embedded; device_id present for is_mine
     const raw = cache.getCachedPosts({ page, pageSize, category, search });
-    return buildPublicPosts(raw, deviceId);
+    return buildPublicPosts(raw, userId);
   }
 
-  // Cold-start DB fallback — bulk-fetch counts, then liked, 4 queries total
   const from = page * pageSize;
-  const to = from + pageSize - 1;
   let query = supabaseAdmin
     .from("posts")
     .select(FETCH_COLUMNS)
     .order("created_at", { ascending: false })
-    .range(from, to);
+    .range(from, from + pageSize - 1);
   if (category) query = query.eq("category", category);
-  if (search) query = query.or(`title.ilike.%${search}%,content.ilike.%${search}%`);
+  if (search)   query = query.or(`title.ilike.%${search}%,content.ilike.%${search}%`);
   const { data, error } = await query;
   if (error) throw new HttpError(500, error.message);
 
@@ -64,58 +59,54 @@ export async function listPosts({ page = 0, pageSize = 5, category, search, devi
     supabaseAdmin.from("comments").select("post_id").in("post_id", ids),
     supabaseAdmin.from("shares").select("post_id").in("post_id", ids),
   ]);
-  const likes = countBy(likeData.data, "post_id");
-  const comments = countBy(commentData.data, "post_id");
-  const shares = countBy(shareData.data, "post_id");
   const withStats = (data ?? []).map((p) => ({
     ...p,
-    likes: likes[p.id] ?? 0,
-    comments: comments[p.id] ?? 0,
-    shares: shares[p.id] ?? 0,
+    likes:    countBy(likeData.data, "post_id")[p.id]    ?? 0,
+    comments: countBy(commentData.data, "post_id")[p.id] ?? 0,
+    shares:   countBy(shareData.data, "post_id")[p.id]   ?? 0,
   }));
-  return buildPublicPosts(withStats, deviceId);
+  return buildPublicPosts(withStats, userId);
 }
 
-export async function getPost(id, deviceId) {
+export async function getPost(id, userId) {
   const { data, error } = await supabaseAdmin
     .from("posts")
     .select(FETCH_COLUMNS)
     .eq("id", id)
     .maybeSingle();
   if (error) throw new HttpError(500, error.message);
-  if (!data) throw new HttpError(404, "Post not found");
+  if (!data)  throw new HttpError(404, "Post not found");
 
   const cached = cache.getCachedStats(id);
   const withStats = cached
-    ? { ...data, likes: cached.likes, comments: cached.comments, shares: cached.shares }
+    ? { ...data, ...cached }
     : await (async () => {
         const [lk, cm, sh] = await Promise.all([
-          supabaseAdmin.from("likes").select("id", { count: "exact", head: true }).eq("post_id", id),
+          supabaseAdmin.from("likes").select("id",   { count: "exact", head: true }).eq("post_id", id),
           supabaseAdmin.from("comments").select("id", { count: "exact", head: true }).eq("post_id", id),
-          supabaseAdmin.from("shares").select("id", { count: "exact", head: true }).eq("post_id", id),
+          supabaseAdmin.from("shares").select("id",   { count: "exact", head: true }).eq("post_id", id),
         ]);
         return { ...data, likes: lk.count ?? 0, comments: cm.count ?? 0, shares: sh.count ?? 0 };
       })();
 
-  const [result] = await buildPublicPosts([withStats], deviceId);
+  const [result] = await buildPublicPosts([withStats], userId);
   return result;
 }
 
-export async function updateUserPost(postId, deviceId, { title, content, category }) {
-  // Verify ownership — one small lookup
+export async function updateUserPost(postId, userId, { title, content, category }) {
   const { data: existing, error: selErr } = await supabaseAdmin
     .from("posts")
-    .select("device_id, source")
+    .select("user_id, source")
     .eq("id", postId)
     .maybeSingle();
-  if (selErr) throw new HttpError(500, selErr.message);
+  if (selErr)   throw new HttpError(500, selErr.message);
   if (!existing) throw new HttpError(404, "Post not found");
-  if (existing.source === "admin") throw new HttpError(403, "Admin posts cannot be edited here");
-  if (existing.device_id !== deviceId) throw new HttpError(403, "You can only edit your own posts");
+  if (existing.source === "admin")   throw new HttpError(403, "Admin posts cannot be edited here");
+  if (existing.user_id !== userId)   throw new HttpError(403, "You can only edit your own posts");
 
   const updates = {
-    title: title ? sanitizeText(title) : null,
-    content: sanitizeText(content),
+    title:    title ? sanitizeText(title) : null,
+    content:  sanitizeText(content),
     category,
   };
   const { data, error } = await supabaseAdmin
@@ -127,43 +118,43 @@ export async function updateUserPost(postId, deviceId, { title, content, categor
   if (error) throw new HttpError(500, error.message);
 
   cache.updatePost(postId, updates);
-  const [result] = await buildPublicPosts([data], deviceId);
+  const [result] = await buildPublicPosts([data], userId);
   return result;
 }
 
-async function countRecentUserPosts(deviceId) {
+async function countRecentUserPosts(userId) {
   const since = new Date(Date.now() - DAY_MS).toISOString();
   const { count, error } = await supabaseAdmin
     .from("posts")
     .select("id", { count: "exact", head: true })
-    .eq("device_id", deviceId)
+    .eq("user_id", userId)
     .gte("created_at", since);
   if (error) throw new HttpError(500, error.message);
   return count ?? 0;
 }
 
-export async function createUserPost(deviceId, { title, content, category, image_url }) {
-  const recentCount = await countRecentUserPosts(deviceId);
-  if (recentCount >= MAX_USER_POSTS_PER_DAY) {
+export async function createUserPost(userId, authorName, { title, content, category, image_url }) {
+  const recent = await countRecentUserPosts(userId);
+  if (recent >= MAX_USER_POSTS_PER_DAY) {
     throw new HttpError(429, `You can only create ${MAX_USER_POSTS_PER_DAY} posts per day.`);
   }
 
   const { data, error } = await supabaseAdmin
     .from("posts")
     .insert({
-      title: title ? sanitizeText(title) : null,
-      content: sanitizeText(content),
+      title:       title ? sanitizeText(title) : null,
+      content:     sanitizeText(content),
       category,
-      image_url: image_url ?? null,
-      device_id: deviceId,
-      source: "user",
-      author_name: "Community Member",
+      image_url:   image_url ?? null,
+      user_id:     userId,
+      source:      "user",
+      author_name: authorName || "Community Member",
     })
     .select(FETCH_COLUMNS)
     .single();
   if (error) throw new HttpError(500, error.message);
 
-  cache.addPost(data); // stores device_id internally
-  const { device_id, ...rest } = data;
+  cache.addPost(data);
+  const { user_id, ...rest } = data;
   return { ...rest, likes: 0, comments: 0, shares: 0, liked: false, is_mine: true };
 }
