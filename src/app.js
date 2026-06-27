@@ -2,7 +2,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import { isProd } from "./config/env.js";
-import { securityHeaders, corsMiddleware } from "./middleware/security.js";
+import { securityHeaders, corsMiddleware, csrfOriginCheck } from "./middleware/security.js";
 import { ipRateLimiter, writeRateLimiter, requestId } from "./middleware/rateLimiter.js";
 import { sessionMiddleware } from "./middleware/session.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
@@ -17,6 +17,10 @@ import profileRoutes    from "./routes/profile.routes.js";
 
 export const app = express();
 
+// Vercel (and most cloud platforms) sit behind a reverse proxy.
+// Trust the first hop so express-rate-limit can read the real client IP
+// from the X-Forwarded-For header instead of throwing a validation error.
+app.set("trust proxy", 1);
 app.disable("x-powered-by");
 app.use(requestId);
 app.use(securityHeaders);
@@ -29,6 +33,7 @@ app.use(express.json({ limit: "256kb" }));
 app.use(sessionMiddleware);
 
 app.use("/api", ipRateLimiter);
+app.use("/api", csrfOriginCheck);
 app.use("/api", (req, res, next) =>
   ["POST", "PUT", "DELETE", "PATCH"].includes(req.method) ? writeRateLimiter(req, res, next) : next(),
 );
