@@ -1,7 +1,6 @@
 import { supabaseAdmin } from "../config/supabase.js";
 
 const CACHE_MAX = 50;
-// device_id is stored internally for is_mine computation — never sent to clients
 const CACHE_COLUMNS = "id, author_name, title, content, image_url, category, source, created_at, user_id";
 
 // Mutable module-level state — single process instance

@@ -9,7 +9,7 @@ export const reportPost = asyncHandler(async (req, res) => {
   if (!parsed.success) {
     throw new HttpError(400, parsed.error.issues[0]?.message || "Invalid report");
   }
-  await enforceRateLimit(req.deviceId, "report");
-  const result = await createReport(req.params.id, req.deviceId, parsed.data.reason);
+  await enforceRateLimit(req.userId, "report");
+  const result = await createReport(req.params.id, req.userId, parsed.data.reason);
   res.status(201).json(result);
 });

@@ -45,13 +45,13 @@ const LIMITS = {
 const CLEANUP_MAX_AGE_MS = 60 * 60_000;
 
 // In-memory short-circuit: tracks recent actions to avoid a DB round-trip
-// on every request. Key = `${deviceId}:${action}`, value = hit count in window.
+// on every request. Key = `${userId}:${action}`, value = hit count in window.
 // This is a best-effort first gate; the DB check below is authoritative.
 const _memWindow = new Map(); // key → { count, expiresAt }
 
-function memCheck(deviceId, action) {
+function memCheck(userId, action) {
   const { windowMs, max } = LIMITS[action];
-  const key = `${deviceId}:${action}`;
+  const key = `${userId}:${action}`;
   const now = Date.now();
   const entry = _memWindow.get(key);
   if (!entry || now > entry.expiresAt) {
@@ -69,9 +69,9 @@ setInterval(() => {
   for (const [k, v] of _memWindow) if (now > v.expiresAt) _memWindow.delete(k);
 }, 5 * 60_000).unref();
 
-export async function enforceRateLimit(deviceId, action) {
+export async function enforceRateLimit(userId, action) {
   // Fast in-memory gate — avoids DB for clear spammers
-  if (memCheck(deviceId, action)) {
+  if (memCheck(userId, action)) {
     throw new HttpError(429, `Too many ${action} requests — please slow down.`);
   }
 
@@ -81,7 +81,7 @@ export async function enforceRateLimit(deviceId, action) {
   const { count, error: countErr } = await supabaseAdmin
     .from("rate_limit_events")
     .select("id", { count: "exact", head: true })
-    .eq("device_id", deviceId)
+    .eq("user_id", userId)
     .eq("action", action)
     .gte("created_at", since);
   if (countErr) throw new HttpError(500, countErr.message);
@@ -92,7 +92,7 @@ export async function enforceRateLimit(deviceId, action) {
 
   const { error: insErr } = await supabaseAdmin
     .from("rate_limit_events")
-    .insert({ device_id: deviceId, action });
+    .insert({ user_id: userId, action });
   if (insErr) throw new HttpError(500, insErr.message);
 
   // Probabilistic cleanup (2% chance) to keep the table lean

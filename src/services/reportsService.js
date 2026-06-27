@@ -2,7 +2,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { HttpError } from "../middleware/errorHandler.js";
 import { sanitizeText } from "../middleware/sanitize.js";
 
-export async function createReport(postId, deviceId, reason) {
+export async function createReport(postId, userId, reason) {
   // Confirm the post exists so reports can't be spammed against arbitrary ids.
   const { data: post, error: postErr } = await supabaseAdmin
     .from("posts")
@@ -14,7 +14,7 @@ export async function createReport(postId, deviceId, reason) {
 
   const { data, error } = await supabaseAdmin
     .from("reports")
-    .insert({ post_id: postId, device_id: deviceId, reason: sanitizeText(reason) || null })
+    .insert({ post_id: postId, user_id: userId, reason: sanitizeText(reason) || null })
     .select("id, post_id, reason, created_at")
     .single();
   if (error) throw new HttpError(500, error.message);

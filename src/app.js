@@ -11,7 +11,6 @@ import authRoutes       from "./routes/auth.routes.js";
 import postsRoutes      from "./routes/posts.routes.js";
 import engagementRoutes from "./routes/engagement.routes.js";
 import reportsRoutes    from "./routes/reports.routes.js";
-import deviceRoutes     from "./routes/device.routes.js";
 import adminRoutes      from "./routes/admin.routes.js";
 import profileRoutes    from "./routes/profile.routes.js";
 
@@ -42,7 +41,6 @@ app.use("/api/auth",    authRoutes);
 app.use("/api/posts",   postsRoutes);
 app.use("/api/posts",   engagementRoutes);
 app.use("/api/posts",   reportsRoutes);
-app.use("/api/device",  deviceRoutes);
 app.use("/api/admin",   adminRoutes);
 app.use("/api/profile", profileRoutes);
 
