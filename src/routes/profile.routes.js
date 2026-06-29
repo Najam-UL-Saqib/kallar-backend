@@ -1,13 +1,15 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/authMiddleware.js";
-import { profile, updateProfileHandler, myPosts } from "../controllers/profileController.js";
+import { requireAuth, optionalAuth } from "../middleware/authMiddleware.js";
+import { profile, updateProfileHandler, myPosts, publicProfile, publicUserPosts } from "../controllers/profileController.js";
 
 const router = Router();
 
-router.use(requireAuth); // all profile routes require login
+router.get("/user/:userId",       optionalAuth, publicProfile);
+router.get("/user/:userId/posts", optionalAuth, publicUserPosts);
 
-router.get("/",       profile);
-router.put("/",       updateProfileHandler);
-router.get("/posts",  myPosts);
+router.use(requireAuth);
+router.get("/",      profile);
+router.put("/",      updateProfileHandler);
+router.get("/posts", myPosts);
 
 export default router;

@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { env, isProd } from "../config/env.js";
 
-const COOKIE_NAME    = "tks_session";
+const COOKIE_NAME    = "tks_session_v2";
 const MAX_AGE_MS     = 1000 * 60 * 60 * 24 * 30; // 30 days
 const ALG            = "aes-256-gcm";
 
