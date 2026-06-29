@@ -17,7 +17,7 @@ export const securityHeaders = helmet({
 export const corsMiddleware = cors({
   origin: env.frontendUrl,
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 });
 

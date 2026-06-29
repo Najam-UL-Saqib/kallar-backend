@@ -15,9 +15,11 @@ function writeStateCookie(res, state) {
   res.cookie(STATE_COOKIE, state, {
     httpOnly: true,
     secure:   isProd,
-    // lax is fine here: the callback is a top-level GET navigation (Google → backend),
-    // which lax allows. We do NOT need "none" for this short-lived cookie.
-    sameSite: "lax",
+    // Must be "none" in production: mobile Chrome drops SameSite=Lax cookies
+    // during the Google→backend redirect chain because the Referer is google.com,
+    // causing a state mismatch and silent auth failure. The state token itself
+    // provides the CSRF protection, so SameSite=None is safe here.
+    sameSite: isProd ? "none" : "lax",
     path:     "/api/auth",
     maxAge:   STATE_MAX_AGE_MS,
   });
