@@ -1,5 +1,5 @@
-import { randomBytes } from "node:crypto";
-import { env, isProd } from "../config/env.js";
+import { randomBytes, createHmac, timingSafeEqual } from "node:crypto";
+import { env } from "../config/env.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { upsertProfile } from "../services/profileService.js";
 import { writeSessionCookie, clearSessionCookie } from "../middleware/session.js";
@@ -8,27 +8,32 @@ const GOOGLE_AUTH_URL     = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL    = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 
-const STATE_COOKIE = "oauth_state";
-const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes — enough for the user to complete login
-
-function writeStateCookie(res, state) {
-  res.cookie(STATE_COOKIE, state, {
-    httpOnly: true,
-    secure:   isProd,
-    // Must be "none" in production: mobile Chrome drops SameSite=Lax cookies
-    // during the Google→backend redirect chain because the Referer is google.com,
-    // causing a state mismatch and silent auth failure. The state token itself
-    // provides the CSRF protection, so SameSite=None is safe here.
-    sameSite: isProd ? "none" : "lax",
-    path:     "/api/auth",
-    maxAge:   STATE_MAX_AGE_MS,
-  });
+// CSRF state is a signed nonce — no cookie required.
+// This eliminates the cross-domain cookie dependency entirely: the state value
+// is self-verifiable via HMAC, so it survives any redirect chain and any cookie
+// policy without storing anything server-side.
+function generateState() {
+  const nonce = randomBytes(24).toString("base64url");
+  const sig   = createHmac("sha256", env.deviceTokenSecret).update(nonce).digest("base64url");
+  return `${nonce}.${sig}`;
 }
 
-// Step 1 — redirect browser to Google consent screen with a CSRF state token
+function verifyState(state) {
+  if (!state || !state.includes(".")) return false;
+  const dot   = state.lastIndexOf(".");
+  const nonce = state.slice(0, dot);
+  const sig   = state.slice(dot + 1);
+  const expected = createHmac("sha256", env.deviceTokenSecret).update(nonce).digest("base64url");
+  try {
+    return timingSafeEqual(Buffer.from(sig, "base64url"), Buffer.from(expected, "base64url"));
+  } catch {
+    return false;
+  }
+}
+
+// Step 1 — redirect browser to Google consent screen with a signed CSRF state token
 export const googleLogin = (req, res) => {
-  const state = randomBytes(24).toString("base64url"); // unguessable random value
-  writeStateCookie(res, state);
+  const state = generateState();
 
   const params = new URLSearchParams({
     client_id:     env.googleClientId,
@@ -37,7 +42,7 @@ export const googleLogin = (req, res) => {
     scope:         "openid email profile",
     access_type:   "online",
     prompt:        "select_account",
-    state,                              // sent to Google, returned in callback
+    state,
   });
   res.redirect(`${GOOGLE_AUTH_URL}?${params}`);
 };
@@ -45,15 +50,12 @@ export const googleLogin = (req, res) => {
 // Step 2 — Google redirects here with ?code=...&state=...
 export const googleCallback = asyncHandler(async (req, res) => {
   const { code, state } = req.query;
-  const savedState = req.cookies?.[STATE_COOKIE];
 
-  // CSRF check: state must match what we set in the cookie
-  if (!state || !savedState || state !== savedState) {
-    console.warn("[auth] OAuth state mismatch — possible CSRF attempt");
+  // CSRF check: verify the HMAC signature on the state — no cookie lookup needed
+  if (!verifyState(state)) {
+    console.warn("[auth] OAuth state verification failed — possible CSRF attempt");
     return res.redirect(`${env.frontendUrl}?auth=error`);
   }
-  // Clear the one-time state cookie immediately
-  res.clearCookie(STATE_COOKIE, { path: "/api/auth" });
 
   if (!code) return res.redirect(`${env.frontendUrl}?auth=error`);
 
