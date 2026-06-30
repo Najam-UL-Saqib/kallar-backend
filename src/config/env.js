@@ -31,6 +31,10 @@ export const env = {
   googleClientId:       process.env.GOOGLE_CLIENT_ID,
   googleClientSecret:   process.env.GOOGLE_CLIENT_SECRET,
   googleCallbackUrl:    process.env.GOOGLE_CALLBACK_URL,
+  // Web Push (VAPID) — optional; push notifications are skipped when absent
+  vapidPublicKey:       process.env.VAPID_PUBLIC_KEY,
+  vapidPrivateKey:      process.env.VAPID_PRIVATE_KEY,
+  vapidEmail:           process.env.VAPID_EMAIL || "mailto:najam.saqib7549@gmail.com",
 };
 
 export const isProd = env.nodeEnv === "production";

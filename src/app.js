@@ -15,6 +15,7 @@ import adminRoutes         from "./routes/admin.routes.js";
 import profileRoutes       from "./routes/profile.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
 import directoryRoutes     from "./routes/directory.routes.js";
+import pushRoutes          from "./routes/push.routes.js";
 
 export const app = express();
 
@@ -42,6 +43,7 @@ app.use("/api/admin",         adminRoutes);
 app.use("/api/profile",       profileRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/directory",     directoryRoutes);
+app.use("/api/push",          pushRoutes);
 
 app.get("/healthz", (req, res) => res.json({ ok: true }));
 

@@ -2,14 +2,27 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { HttpError } from "../middleware/errorHandler.js";
 import { sanitizeText } from "../middleware/sanitize.js";
 import * as cache from "../cache/postCache.js";
+import { sendPushToUser } from "./pushService.js";
 
 async function createNotification(type, targetUserId, actorName, postId, commentText = null) {
   if (!targetUserId) return;
+
   supabaseAdmin
     .from("notifications")
     .insert({ type, user_id: targetUserId, actor_name: actorName, post_id: postId, comment_text: commentText })
     .then(() => {})
     .catch(() => {});
+
+  // Fire Web Push immediately — doesn't wait for DB insert to finish
+  const actor = actorName || "Someone";
+  const title = "Apna Kallar Syedan 🔔";
+  const body  =
+    type === "like"    ? `${actor} liked your post`
+    : type === "comment" ? `${actor} commented: ${(commentText || "").slice(0, 60)}`
+    : type === "reply"   ? `${actor} replied: ${(commentText || "").slice(0, 60)}`
+    : `${actor} interacted with your post`;
+
+  sendPushToUser(targetUserId, title, body).catch(() => {});
 }
 
 async function getPostOwner(postId) {
