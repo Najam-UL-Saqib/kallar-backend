@@ -2,38 +2,53 @@ import { getCloudinary } from "../config/cloudinary.js";
 import { HttpError } from "../middleware/errorHandler.js";
 import sharp from "sharp";
 
-const MAX_IMAGE_BYTES = 1 * 1024 * 1024; // 1 MB
+const MAX_COMPRESSED_BYTES = 1 * 1024 * 1024; // 1 MB — hard ceiling after compression
 
 /**
- * Compresses an image buffer using sharp (WebP, quality 80, max 1920px wide).
- * Returns the compressed Buffer.
+ * Attempt to compress an image buffer.
+ * @param {Buffer} buffer - Raw image buffer
+ * @param {number} quality   - WebP quality (0–100)
+ * @param {number} maxWidth  - Max pixel width
+ * @returns {Promise<Buffer>}
  */
-async function compressImage(buffer) {
+async function compress(buffer, quality, maxWidth) {
   return sharp(buffer)
-    .rotate()                        // auto-orient based on EXIF
-    .resize({ width: 1920, withoutEnlargement: true })
-    .webp({ quality: 80 })
+    .rotate()                                      // auto-orient via EXIF
+    .resize({ width: maxWidth, withoutEnlargement: true })
+    .webp({ quality })
     .toBuffer();
 }
 
 /**
- * Compresses the image, checks the compressed size is ≤ 1 MB,
+ * Compresses the image (up to 2 attempts), checks that the result is ≤ 1 MB,
  * then uploads to Cloudinary.
- * Throws HttpError 400 if even after compression the file exceeds 1 MB.
+ *
+ * Attempt 1 — WebP q80,  max 1920 px wide  (good quality, reasonable size)
+ * Attempt 2 — WebP q50,  max 1280 px wide  (more aggressive, for larger originals)
+ *
+ * If the image is still > 1 MB after both attempts, throws HttpError 400 with a
+ * user-friendly message that includes a link to an online compression tool.
  */
 export async function uploadImageBuffer(buffer) {
-  // 1. Compress
-  const compressed = await compressImage(buffer);
+  // --- Attempt 1: high quality ------------------------------------------------
+  let compressed = await compress(buffer, 80, 1920);
 
-  // 2. Size check (post-compression)
-  if (compressed.length > MAX_IMAGE_BYTES) {
+  // --- Attempt 2: lower quality (only if needed) ------------------------------
+  if (compressed.length > MAX_COMPRESSED_BYTES) {
+    compressed = await compress(buffer, 50, 1280);
+  }
+
+  // --- Final size check -------------------------------------------------------
+  if (compressed.length > MAX_COMPRESSED_BYTES) {
     throw new HttpError(
       400,
-      "Image is too large even after compression. Please upload an image under 1 MB.",
+      "تصویر کمپریس کرنے کے بعد بھی 1 MB سے بڑی ہے۔ براہ کرم squoosh.app پر کمپریس کریں پھر دوبارہ اپلوڈ کریں۔ | " +
+      "Image is still larger than 1 MB after two compression attempts. " +
+      "Please compress it at squoosh.app then re-upload. [COMPRESS_LINK]",
     );
   }
 
-  // 3. Upload compressed buffer to Cloudinary
+  // --- Upload to Cloudinary ---------------------------------------------------
   const cloudinary = getCloudinary();
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(

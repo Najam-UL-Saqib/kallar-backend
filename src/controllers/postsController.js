@@ -1,5 +1,5 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { postCreateSchema, postUpdateSchema, MAX_IMAGE_BYTES } from "../utils/validators.js";
+import { postCreateSchema, postUpdateSchema, MAX_RAW_IMAGE_BYTES } from "../utils/validators.js";
 import { HttpError } from "../middleware/errorHandler.js";
 import { enforceRateLimit } from "../middleware/rateLimiter.js";
 import { listPosts, getPost, createUserPost, updateUserPost, deleteUserPost, getRemainingPosts } from "../services/postsService.js";
@@ -20,8 +20,9 @@ export const getPostById = asyncHandler(async (req, res) => {
 });
 
 export const createPost = asyncHandler(async (req, res) => {
-  if (req.file && req.file.size > MAX_IMAGE_BYTES)
-    throw new HttpError(400, "Image must be 1 MB or smaller");
+  // Quick raw-size check (3 MB) before even trying compression
+  if (req.file && req.file.size > MAX_RAW_IMAGE_BYTES)
+    throw new HttpError(400, "Image must be 3 MB or smaller. Please compress it at squoosh.app");
 
   let poll_options = null;
   if (req.body.poll_options) {

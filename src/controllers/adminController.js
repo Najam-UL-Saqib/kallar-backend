@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../middleware/errorHandler.js";
 import { issueAdminSession, clearAdminSession } from "../middleware/adminAuth.js";
-import { adminLoginSchema, postAdminUpsertSchema, directorySchema, MAX_IMAGE_BYTES } from "../utils/validators.js";
+import { adminLoginSchema, postAdminUpsertSchema, directorySchema, MAX_RAW_IMAGE_BYTES } from "../utils/validators.js";
 import {
   checkAdminPassword, adminListPosts, adminCreatePost, adminUpdatePost,
   adminDeletePost, adminListTable, adminDeleteRow, adminStats, adminPinPost,
@@ -70,7 +70,7 @@ export const dismissReport = asyncHandler(async (req, res) => {
 
 export const uploadImage = asyncHandler(async (req, res) => {
   if (!req.file) throw new HttpError(400, "No file uploaded");
-  if (req.file.size > MAX_IMAGE_BYTES) throw new HttpError(400, "Image must be 1 MB or smaller");
+  if (req.file.size > MAX_RAW_IMAGE_BYTES) throw new HttpError(400, "Image must be 3 MB or smaller. Please compress it at squoosh.app");
   const result = await uploadImageBuffer(req.file.buffer);
   res.json(result);
 });

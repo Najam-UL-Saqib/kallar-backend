@@ -7,15 +7,15 @@ import { ipRateLimiter, writeRateLimiter, requestId } from "./middleware/rateLim
 import { sessionMiddleware } from "./middleware/session.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 
-import authRoutes          from "./routes/auth.routes.js";
-import postsRoutes         from "./routes/posts.routes.js";
-import engagementRoutes    from "./routes/engagement.routes.js";
-import reportsRoutes       from "./routes/reports.routes.js";
-import adminRoutes         from "./routes/admin.routes.js";
-import profileRoutes       from "./routes/profile.routes.js";
+import authRoutes from "./routes/auth.routes.js";
+import postsRoutes from "./routes/posts.routes.js";
+import engagementRoutes from "./routes/engagement.routes.js";
+import reportsRoutes from "./routes/reports.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+import profileRoutes from "./routes/profile.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
-import directoryRoutes     from "./routes/directory.routes.js";
-import pushRoutes          from "./routes/push.routes.js";
+import directoryRoutes from "./routes/directory.routes.js";
+import pushRoutes from "./routes/push.routes.js";
 
 export const app = express();
 
@@ -35,15 +35,15 @@ app.use("/api", (req, res, next) =>
   ["POST", "PUT", "DELETE", "PATCH"].includes(req.method) ? writeRateLimiter(req, res, next) : next(),
 );
 
-app.use("/api/auth",          authRoutes);
-app.use("/api/posts",         postsRoutes);
-app.use("/api/posts",         engagementRoutes);
-app.use("/api/posts",         reportsRoutes);
-app.use("/api/admin",         adminRoutes);
-app.use("/api/profile",       profileRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/posts", postsRoutes);
+app.use("/api/posts", engagementRoutes);
+app.use("/api/posts", reportsRoutes);
+app.use("/api/kls-ctrl", adminRoutes);
+app.use("/api/profile", profileRoutes);
 app.use("/api/notifications", notificationsRoutes);
-app.use("/api/directory",     directoryRoutes);
-app.use("/api/push",          pushRoutes);
+app.use("/api/directory", directoryRoutes);
+app.use("/api/push", pushRoutes);
 
 app.get("/healthz", (req, res) => res.json({ ok: true }));
 
