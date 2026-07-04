@@ -54,16 +54,16 @@ test("creating a post rejects empty content", async () => {
 });
 
 test("admin routes require auth", async () => {
-  const res = await request(app).get("/api/admin/stats");
+  const res = await request(app).get("/api/kls-ctrl/stats");
   assert.equal(res.status, 401);
 });
 
 test("admin login rejects a wrong password", async () => {
-  const res = await request(app).post("/api/admin/login").send({ password: "wrong" });
+  const res = await request(app).post("/api/kls-ctrl/login").send({ password: "wrong" });
   assert.equal(res.status, 401);
 });
 
 test("admin login requires a password field", async () => {
-  const res = await request(app).post("/api/admin/login").send({});
+  const res = await request(app).post("/api/kls-ctrl/login").send({});
   assert.equal(res.status, 400);
 });
