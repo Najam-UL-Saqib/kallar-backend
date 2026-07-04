@@ -6,12 +6,12 @@ import { listPosts, getPost, createUserPost, updateUserPost, deleteUserPost, get
 import { uploadImageBuffer } from "../services/cloudinaryService.js";
 
 export const getPosts = asyncHandler(async (req, res) => {
-  const page     = Number(req.query.page)     || 0;
+  const page = Number(req.query.page) || 0;
   const pageSize = Math.min(Number(req.query.pageSize) || 5, 20);
   const category = req.query.category || undefined;
-  const search   = req.query.search ? String(req.query.search).slice(0, 100) : undefined;
-  const sort     = ["newest", "trending", "popular"].includes(req.query.sort) ? req.query.sort : "newest";
-  const tag      = req.query.tag ? String(req.query.tag).slice(0, 80).toLowerCase() : undefined;
+  const search = req.query.search ? String(req.query.search).slice(0, 100) : undefined;
+  const sort = ["newest", "trending", "popular"].includes(req.query.sort) ? req.query.sort : "newest";
+  const tag = req.query.tag ? String(req.query.tag).slice(0, 80).toLowerCase() : undefined;
   res.json(await listPosts({ page, pageSize, category, search, userId: req.userId, sort, tag }));
 });
 
@@ -29,10 +29,10 @@ export const createPost = asyncHandler(async (req, res) => {
   }
 
   const parsed = postCreateSchema.safeParse({
-    title:        req.body.title    || null,
-    content:      req.body.content,
-    category:     req.body.category || undefined,
-    event_date:   req.body.event_date || null,
+    title: req.body.title || null,
+    content: req.body.content,
+    category: req.body.category || undefined,
+    event_date: req.body.event_date || null,
     poll_options: poll_options || null,
   });
   if (!parsed.success)
@@ -53,8 +53,8 @@ export const createPost = asyncHandler(async (req, res) => {
 
 export const updatePost = asyncHandler(async (req, res) => {
   const parsed = postUpdateSchema.safeParse({
-    title:    req.body.title ?? null,
-    content:  req.body.content,
+    title: req.body.title ?? null,
+    content: req.body.content,
     category: req.body.category || undefined,
   });
   if (!parsed.success)
