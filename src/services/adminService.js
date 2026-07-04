@@ -27,38 +27,59 @@ export async function adminListPosts() {
   return data;
 }
 
+function extractHashtags(text) {
+  if (!text) return [];
+  const matches = text.match(/#[\w؀-ۿ]+/g) ?? [];
+  return [...new Set(matches.map((t) => t.slice(1).toLowerCase()))];
+}
+
 export async function adminCreatePost({ title, content, category, image_url, author_name, event_date, poll_options }) {
   const { data, error } = await supabaseAdmin
     .from("posts")
     .insert({
-      title:        title ? sanitizeText(title) : null,
-      content:      sanitizeText(content),
+      title: title ? sanitizeText(title) : null,
+      content: sanitizeText(content),
       category,
-      image_url:    image_url ?? null,
-      author_name:  sanitizeText(author_name),
-      source:       "admin",
-      event_date:   event_date ?? null,
+      image_url: image_url ?? null,
+      author_name: sanitizeText(author_name),
+      source: "admin",
+      event_date: event_date ?? null,
       poll_options: poll_options ?? null,
     })
     .select()
     .single();
   if (error) throw new HttpError(500, error.message);
+
+  // Index hashtags
+  const tags = extractHashtags(content);
+  if (tags.length > 0) {
+    supabaseAdmin.from("post_tags").insert(tags.map((tag) => ({ post_id: data.id, tag }))).then(() => { }).catch(() => { });
+  }
+
   cache.addPost(data);
   return data;
 }
 
 export async function adminUpdatePost(id, { title, content, category, image_url, author_name, event_date, poll_options }) {
   const updates = {
-    title:        title ? sanitizeText(title) : null,
-    content:      sanitizeText(content),
+    title: title ? sanitizeText(title) : null,
+    content: sanitizeText(content),
     category,
-    image_url:    image_url ?? null,
-    author_name:  sanitizeText(author_name),
-    event_date:   event_date ?? null,
+    image_url: image_url ?? null,
+    author_name: sanitizeText(author_name),
+    event_date: event_date ?? null,
     poll_options: poll_options ?? null,
   };
   const { error } = await supabaseAdmin.from("posts").update(updates).eq("id", id);
   if (error) throw new HttpError(500, error.message);
+
+  // Re-index hashtags
+  await supabaseAdmin.from("post_tags").delete().eq("post_id", id);
+  const tags = extractHashtags(content);
+  if (tags.length > 0) {
+    await supabaseAdmin.from("post_tags").insert(tags.map((tag) => ({ post_id: id, tag })));
+  }
+
   cache.updatePost(id, updates);
   return { ok: true };
 }
@@ -97,17 +118,17 @@ export async function adminDeleteRow(table, id) {
 
 export async function adminStats() {
   const [posts, likes, comments, shares, reports] = await Promise.all([
-    supabaseAdmin.from("posts").select("*",    { count: "exact", head: true }),
-    supabaseAdmin.from("likes").select("*",    { count: "exact", head: true }),
+    supabaseAdmin.from("posts").select("*", { count: "exact", head: true }),
+    supabaseAdmin.from("likes").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("comments").select("*", { count: "exact", head: true }),
-    supabaseAdmin.from("shares").select("*",   { count: "exact", head: true }),
-    supabaseAdmin.from("reports").select("*",  { count: "exact", head: true }),
+    supabaseAdmin.from("shares").select("*", { count: "exact", head: true }),
+    supabaseAdmin.from("reports").select("*", { count: "exact", head: true }),
   ]);
   return {
-    posts:    posts.count    ?? 0,
-    likes:    likes.count    ?? 0,
+    posts: posts.count ?? 0,
+    likes: likes.count ?? 0,
     comments: comments.count ?? 0,
-    shares:   shares.count   ?? 0,
-    reports:  reports.count  ?? 0,
+    shares: shares.count ?? 0,
+    reports: reports.count ?? 0,
   };
 }
