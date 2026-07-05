@@ -117,12 +117,13 @@ export async function adminDeleteRow(table, id) {
 }
 
 export async function adminStats() {
-  const [posts, likes, comments, shares, reports] = await Promise.all([
+  const [posts, likes, comments, shares, reports, usersRes] = await Promise.all([
     supabaseAdmin.from("posts").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("likes").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("comments").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("shares").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("reports").select("*", { count: "exact", head: true }),
+    supabaseAdmin.auth.admin.listUsers({ perPage: 1 }),
   ]);
   return {
     posts: posts.count ?? 0,
@@ -130,5 +131,6 @@ export async function adminStats() {
     comments: comments.count ?? 0,
     shares: shares.count ?? 0,
     reports: reports.count ?? 0,
+    users: usersRes.data?.total ?? 0,
   };
 }
