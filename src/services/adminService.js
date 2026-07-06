@@ -123,14 +123,42 @@ export async function adminStats() {
     supabaseAdmin.from("comments").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("shares").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("reports").select("*", { count: "exact", head: true }),
-    supabaseAdmin.auth.admin.listUsers({ perPage: 1 }),
+    supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1 }),
   ]);
+
+  // usersRes.data.total is the correct field for total user count
+  const userCount = usersRes.data?.total ?? usersRes.data?.users?.length ?? 0;
+
   return {
     posts: posts.count ?? 0,
     likes: likes.count ?? 0,
     comments: comments.count ?? 0,
     shares: shares.count ?? 0,
     reports: reports.count ?? 0,
-    users: usersRes.data?.total ?? 0,
+    users: userCount,
+  };
+}
+
+export async function adminListUsers(page = 1, perPage = 20) {
+  const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+    page,
+    perPage,
+  });
+  if (error) throw new HttpError(500, error.message);
+  return {
+    users: (data?.users ?? []).map((u) => ({
+      id: u.id,
+      email: u.email ?? null,
+      phone: u.phone ?? null,
+      display_name: u.user_metadata?.name ?? u.user_metadata?.full_name ?? null,
+      avatar_url: u.user_metadata?.avatar_url ?? null,
+      provider: u.app_metadata?.provider ?? "email",
+      created_at: u.created_at,
+      last_sign_in_at: u.last_sign_in_at ?? null,
+      banned_until: u.banned_until ?? null,
+    })),
+    total: data?.total ?? 0,
+    page,
+    perPage,
   };
 }

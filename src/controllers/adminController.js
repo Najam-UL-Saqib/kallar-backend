@@ -5,6 +5,7 @@ import { adminLoginSchema, postAdminUpsertSchema, directorySchema, MAX_RAW_IMAGE
 import {
   checkAdminPassword, adminListPosts, adminCreatePost, adminUpdatePost,
   adminDeletePost, adminListTable, adminDeleteRow, adminStats, adminPinPost,
+  adminListUsers,
 } from "../services/adminService.js";
 import { listReports, deleteReport } from "../services/reportsService.js";
 import { uploadImageBuffer } from "../services/cloudinaryService.js";
@@ -50,6 +51,12 @@ export const deletePost = asyncHandler(async (req, res) => {
 export const pinPost = asyncHandler(async (req, res) => {
   const pinned = req.body.pinned === true || req.body.pinned === "true";
   res.json(await adminPinPost(req.params.id, pinned));
+});
+
+export const listUsers = asyncHandler(async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const perPage = Math.min(100, Math.max(1, parseInt(req.query.perPage) || 20));
+  res.json(await adminListUsers(page, perPage));
 });
 
 export const listTable = asyncHandler(async (req, res) => {
