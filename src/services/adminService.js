@@ -123,41 +123,42 @@ export async function adminStats() {
     supabaseAdmin.from("comments").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("shares").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("reports").select("*", { count: "exact", head: true }),
-    supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1 }),
+    supabaseAdmin.from("profiles").select("*", { count: "exact", head: true }),
   ]);
-
-  // usersRes.data.total is the correct field for total user count
-  const userCount = usersRes.data?.total ?? usersRes.data?.users?.length ?? 0;
-
   return {
     posts: posts.count ?? 0,
     likes: likes.count ?? 0,
     comments: comments.count ?? 0,
     shares: shares.count ?? 0,
     reports: reports.count ?? 0,
-    users: userCount,
+    users: usersRes.count ?? 0,
   };
 }
 
 export async function adminListUsers(page = 1, perPage = 20) {
-  const { data, error } = await supabaseAdmin.auth.admin.listUsers({
-    page,
-    perPage,
-  });
+  const from = (page - 1) * perPage;
+  const to = from + perPage - 1;
+
+  const { data, error, count } = await supabaseAdmin
+    .from("profiles")
+    .select("id, email, name, avatar_url, bio, created_at", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
   if (error) throw new HttpError(500, error.message);
   return {
-    users: (data?.users ?? []).map((u) => ({
+    users: (data ?? []).map((u) => ({
       id: u.id,
       email: u.email ?? null,
-      phone: u.phone ?? null,
-      display_name: u.user_metadata?.name ?? u.user_metadata?.full_name ?? null,
-      avatar_url: u.user_metadata?.avatar_url ?? null,
-      provider: u.app_metadata?.provider ?? "email",
+      phone: null,
+      display_name: u.name ?? null,
+      avatar_url: u.avatar_url ?? null,
+      provider: u.email ? "email" : "oauth",
       created_at: u.created_at,
-      last_sign_in_at: u.last_sign_in_at ?? null,
-      banned_until: u.banned_until ?? null,
+      last_sign_in_at: null,
+      banned_until: null,
     })),
-    total: data?.total ?? 0,
+    total: count ?? 0,
     page,
     perPage,
   };
