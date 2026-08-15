@@ -4,6 +4,7 @@ import { getIslamicContent } from "../services/islamicService.js";
 import {
   getOnThisDay, getRandomCat, getRandomDog, getRandomMeme, getBoredActivity, getApod,
 } from "../services/discoverService.js";
+import { getUrduNews } from "../services/newsService.js";
 
 export const islamic   = asyncHandler(async (req, res) => res.json(await getIslamicContent()));
 export const onThisDay = asyncHandler(async (req, res) => res.json(await getOnThisDay()));
@@ -12,3 +13,4 @@ export const dog       = asyncHandler(async (req, res) => res.json(await getRand
 export const meme      = asyncHandler(async (req, res) => res.json(await getRandomMeme()));
 export const bored     = asyncHandler(async (req, res) => res.json(await getBoredActivity()));
 export const apod      = asyncHandler(async (req, res) => res.json(await getApod(env.nasaApiKey)));
+export const news      = asyncHandler(async (req, res) => res.json(await getUrduNews()));

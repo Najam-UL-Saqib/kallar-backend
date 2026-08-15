@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { islamic, onThisDay, cat, dog, meme, bored, apod } from "../controllers/discoverController.js";
+import { islamic, onThisDay, cat, dog, meme, bored, apod, news } from "../controllers/discoverController.js";
 
 const router = Router();
 
@@ -12,5 +12,6 @@ router.get("/dog",         dog);
 router.get("/meme",        meme);
 router.get("/bored",       bored);
 router.get("/apod",        apod);
+router.get("/news",        news);
 
 export default router;
