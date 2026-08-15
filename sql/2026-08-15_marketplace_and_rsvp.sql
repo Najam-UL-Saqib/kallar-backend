@@ -8,11 +8,17 @@
 -- already used for every other table in this app. RLS is left off here to
 -- match that existing convention, not because it wouldn't be reasonable
 -- defense-in-depth to add later.
+--
+-- user_id columns are `text`, not `uuid`: profiles.id stores the Google
+-- OAuth `sub` claim directly (see authController.js — "Google sub is our
+-- stable user ID"), which is a numeric string, not a real UUID. post_id/
+-- listing_id stay `uuid` since posts.id and this file's own primary keys
+-- are genuinely DB-generated UUIDs.
 
 -- ─── Marketplace listings ───────────────────────────────────────────────────
 create table if not exists marketplace_listings (
   id                uuid primary key default gen_random_uuid(),
-  user_id           uuid not null references profiles(id) on delete cascade,
+  user_id           text not null references profiles(id) on delete cascade,
   title             text not null,
   description       text not null,
   price             numeric,              -- null = "negotiable" / contact for price
@@ -37,7 +43,7 @@ create index if not exists idx_marketplace_listings_status     on marketplace_li
 create table if not exists marketplace_reports (
   id          uuid primary key default gen_random_uuid(),
   listing_id  uuid not null references marketplace_listings(id) on delete cascade,
-  user_id     uuid not null references profiles(id) on delete cascade,
+  user_id     text not null references profiles(id) on delete cascade,
   reason      text,
   created_at  timestamptz not null default now()
 );
@@ -47,7 +53,7 @@ create index if not exists idx_marketplace_reports_listing_id on marketplace_rep
 create table if not exists event_rsvps (
   id          uuid primary key default gen_random_uuid(),
   post_id     uuid not null references posts(id) on delete cascade,
-  user_id     uuid not null references profiles(id) on delete cascade,
+  user_id     text not null references profiles(id) on delete cascade,
   created_at  timestamptz not null default now(),
   unique (post_id, user_id)
 );
