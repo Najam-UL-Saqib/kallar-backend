@@ -3,6 +3,7 @@ import { HttpError } from "../middleware/errorHandler.js";
 import { sanitizeText } from "../middleware/sanitize.js";
 import { MAX_USER_POSTS_PER_DAY } from "../utils/validators.js";
 import * as cache from "../cache/postCache.js";
+import { getOrFetchWithTtl } from "../cache/ttlCache.js";
 
 const FETCH_COLUMNS =
   "id, author_name, title, content, image_url, category, source, created_at, user_id, views, pinned, event_date, poll_options";
@@ -124,6 +125,34 @@ export async function listPosts({ page = 0, pageSize = 5, category, search, user
 
   const withStats = await attachStats(data ?? []);
   return buildPublicPosts(withStats, userId);
+}
+
+// Ranks posts from the last 7 days by engagement and returns the single
+// most-loved one — the raw pick (before per-viewer liked/bookmarked state)
+// is cached for everyone since it's identical regardless of who's asking.
+async function computeWeeklyTopPost() {
+  const since = new Date(Date.now() - 7 * DAY_MS).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("posts")
+    .select(FETCH_COLUMNS)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw new HttpError(500, error.message);
+  if (!data || data.length === 0) return null;
+
+  const withStats = await attachStats(data);
+  withStats.sort((a, b) => (b.likes + b.comments + b.shares) - (a.likes + a.comments + a.shares));
+  const top = withStats[0];
+  // Don't spotlight something nobody's actually engaged with yet
+  return top && top.likes > 0 ? top : null;
+}
+
+export async function getWeeklySpotlight(userId) {
+  const top = await getOrFetchWithTtl("weekly-spotlight", 10 * 60_000, computeWeeklyTopPost);
+  if (!top) return null;
+  const [result] = await buildPublicPosts([top], userId);
+  return result;
 }
 
 export async function getPost(id, userId) {
