@@ -5,12 +5,17 @@ import { commentSchema } from "../utils/validators.js";
 import {
   toggleLike, submitComment, deleteComment, toggleCommentLike,
   submitShare, getStats, listComments, toggleBookmark, listBookmarks, votePoll, getPollResults,
-  listLikers,
+  listLikers, toggleRsvp,
 } from "../services/engagementService.js";
 
 export const like = asyncHandler(async (req, res) => {
   await enforceRateLimit(req.userId, "like");
   res.json(await toggleLike(req.params.id, req.userId, req.userName));
+});
+
+export const rsvp = asyncHandler(async (req, res) => {
+  await enforceRateLimit(req.userId, "rsvp");
+  res.json(await toggleRsvp(req.params.id, req.userId));
 });
 
 export const likers = asyncHandler(async (req, res) => {

@@ -28,8 +28,11 @@ async function compress(buffer, quality, maxWidth) {
  *
  * If the image is still > 1 MB after both attempts, throws HttpError 400 with a
  * user-friendly message that includes a link to an online compression tool.
+ *
+ * @param {string} folder - Cloudinary folder to upload into (e.g. "post-images",
+ *   "marketplace-images") — keeps unrelated image sets organized.
  */
-export async function uploadImageBuffer(buffer) {
+export async function uploadImageBuffer(buffer, folder = "post-images") {
   // --- Attempt 1: high quality ------------------------------------------------
   let compressed = await compress(buffer, 80, 1920);
 
@@ -52,7 +55,7 @@ export async function uploadImageBuffer(buffer) {
   const cloudinary = getCloudinary();
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder: "post-images", resource_type: "image" },
+      { folder, resource_type: "image" },
       (err, result) => {
         if (err) return reject(new HttpError(502, "Image upload failed"));
         resolve({ url: result.secure_url, path: result.public_id });
