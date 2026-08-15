@@ -5,11 +5,16 @@ import { commentSchema } from "../utils/validators.js";
 import {
   toggleLike, submitComment, deleteComment, toggleCommentLike,
   submitShare, getStats, listComments, toggleBookmark, listBookmarks, votePoll, getPollResults,
+  listLikers,
 } from "../services/engagementService.js";
 
 export const like = asyncHandler(async (req, res) => {
   await enforceRateLimit(req.userId, "like");
   res.json(await toggleLike(req.params.id, req.userId, req.userName));
+});
+
+export const likers = asyncHandler(async (req, res) => {
+  res.json(await listLikers(req.params.id));
 });
 
 export const comment = asyncHandler(async (req, res) => {

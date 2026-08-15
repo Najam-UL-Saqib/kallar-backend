@@ -1,13 +1,14 @@
 import { Router } from "express";
 import {
   like, comment, removeComment, commentLike,
-  share, stats, comments, bookmark, pollVote, pollResults,
+  share, stats, comments, bookmark, pollVote, pollResults, likers,
 } from "../controllers/engagementController.js";
 import { requireAuth, optionalAuth } from "../middleware/authMiddleware.js";
 
 const router = Router();
 
 router.get("/:id/stats",                         optionalAuth, stats);
+router.get("/:id/likes",                         optionalAuth, likers);
 router.get("/:id/comments",                      optionalAuth, comments);
 router.get("/:id/poll-results",                  optionalAuth, pollResults);
 router.post("/:id/like",                         requireAuth,  like);

@@ -143,6 +143,31 @@ export async function submitShare(postId, userId) {
   return { ok: true };
 }
 
+export async function listLikers(postId) {
+  const { data: likeRows, error } = await supabaseAdmin
+    .from("likes")
+    .select("user_id, created_at")
+    .eq("post_id", postId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw new HttpError(500, error.message);
+
+  const userIds = (likeRows ?? []).map((r) => r.user_id).filter(Boolean);
+  if (userIds.length === 0) return [];
+
+  const { data: profiles, error: profErr } = await supabaseAdmin
+    .from("profiles")
+    .select("id, name, avatar_url")
+    .in("id", userIds);
+  if (profErr) throw new HttpError(500, profErr.message);
+
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+  return userIds.map((userId) => {
+    const profile = profileById.get(userId);
+    return { id: userId, name: profile?.name ?? null, avatar_url: profile?.avatar_url ?? null };
+  });
+}
+
 export async function getStats(postId, userId) {
   const cached = cache.getCachedStats(postId);
   const likedRow = userId
