@@ -51,6 +51,23 @@ export const directorySchema = z.object({
   description: z.string().trim().max(300).optional().nullable(),
 });
 
+export const MARKETPLACE_CATEGORIES = [
+  "Electronics", "Furniture", "Vehicles", "Clothing",
+  "Home & Garden", "Books & Hobbies", "Property", "Other",
+];
+
+export const marketplaceListingSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(120),
+  description: z.string().trim().min(1, "Description is required").max(1000),
+  price: z.coerce.number().nonnegative().optional().nullable(),
+  category: z.enum(MARKETPLACE_CATEGORIES).optional().default("Other"),
+  condition: z.enum(["new", "used"]).optional().default("used"),
+  location: z.string().trim().max(120).optional().nullable(),
+  contact_phone: z.string().trim().max(30).optional().nullable(),
+  contact_whatsapp: z.string().trim().max(30).optional().nullable(),
+});
+
 export const MAX_RAW_IMAGE_BYTES = 3 * 1024 * 1024; // 3 MB — raw upload ceiling (compression brings it to ≤1 MB)
 export const MAX_IMAGE_BYTES = 1 * 1024 * 1024; // 1 MB — post-compression ceiling
 export const MAX_USER_POSTS_PER_DAY = 5;
+export const MAX_USER_LISTINGS_PER_DAY = 5;

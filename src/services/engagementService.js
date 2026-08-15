@@ -64,6 +64,37 @@ export async function toggleLike(postId, userId, actorName) {
   return { liked: true };
 }
 
+export async function toggleRsvp(postId, userId) {
+  const { data: post, error: postErr } = await supabaseAdmin
+    .from("posts").select("event_date").eq("id", postId).maybeSingle();
+  if (postErr) throw new HttpError(500, postErr.message);
+  if (!post)   throw new HttpError(404, "Post not found");
+  if (!post.event_date) throw new HttpError(400, "This post isn't an event");
+
+  const { data: existing, error: selErr } = await supabaseAdmin
+    .from("event_rsvps")
+    .select("id")
+    .eq("post_id", postId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (selErr) throw new HttpError(500, selErr.message);
+
+  if (existing) {
+    const { error } = await supabaseAdmin.from("event_rsvps").delete().eq("post_id", postId).eq("user_id", userId);
+    if (error) throw new HttpError(500, error.message);
+  } else {
+    const { error } = await supabaseAdmin.from("event_rsvps").insert({ post_id: postId, user_id: userId });
+    if (error && !/duplicate|unique/i.test(error.message)) throw new HttpError(500, error.message);
+  }
+
+  const { count } = await supabaseAdmin
+    .from("event_rsvps")
+    .select("id", { count: "exact", head: true })
+    .eq("post_id", postId);
+
+  return { going: !existing, rsvp_count: count ?? 0 };
+}
+
 export async function submitComment(postId, userId, authorName, { text, parent_id }) {
   const { data, error } = await supabaseAdmin
     .from("comments")

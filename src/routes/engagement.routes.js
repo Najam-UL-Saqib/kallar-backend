@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
   like, comment, removeComment, commentLike,
-  share, stats, comments, bookmark, pollVote, pollResults, likers,
+  share, stats, comments, bookmark, pollVote, pollResults, likers, rsvp,
 } from "../controllers/engagementController.js";
 import { requireAuth, optionalAuth } from "../middleware/authMiddleware.js";
 
@@ -18,5 +18,6 @@ router.post("/:id/comments/:commentId/like",     requireAuth,  commentLike);
 router.post("/:id/share",                        requireAuth,  share);
 router.post("/:id/bookmark",                     requireAuth,  bookmark);
 router.post("/:id/vote",                         requireAuth,  pollVote);
+router.post("/:id/rsvp",                         requireAuth,  rsvp);
 
 export default router;

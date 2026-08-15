@@ -40,6 +40,8 @@ const LIMITS = {
   share:   { windowMs: 60_000,       max: 10 },
   post:    { windowMs: 60_000,       max: 5  },
   report:  { windowMs: 60 * 60_000,  max: 5  },
+  listing: { windowMs: 60_000,       max: 5  },
+  rsvp:    { windowMs: 10_000,       max: 10 },
 };
 
 const CLEANUP_MAX_AGE_MS = 60 * 60_000;

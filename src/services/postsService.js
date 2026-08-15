@@ -21,26 +21,41 @@ function extractHashtags(text) {
   return [...new Set(matches.map((t) => t.slice(1).toLowerCase()))];
 }
 
+// Event RSVP data is only fetched for posts that actually have an
+// event_date — attached here (not in attachStats) so it's computed
+// uniformly whether posts came from the in-memory cache or a fresh query,
+// since this is always the final step either way.
 async function buildPublicPosts(rawPosts, userId) {
   if (rawPosts.length === 0) return [];
   const ids = rawPosts.map((p) => p.id);
+  const eventIds = rawPosts.filter((p) => p.event_date).map((p) => p.id);
 
-  const [likedData, bookmarkData] = await Promise.all([
+  const [likedData, bookmarkData, rsvpCountData, myRsvpData] = await Promise.all([
     userId
       ? supabaseAdmin.from("likes").select("post_id").eq("user_id", userId).in("post_id", ids)
       : { data: [] },
     userId
       ? supabaseAdmin.from("bookmarks").select("post_id").eq("user_id", userId).in("post_id", ids)
       : { data: [] },
+    eventIds.length > 0
+      ? supabaseAdmin.from("event_rsvps").select("post_id").in("post_id", eventIds)
+      : { data: [] },
+    (userId && eventIds.length > 0)
+      ? supabaseAdmin.from("event_rsvps").select("post_id").eq("user_id", userId).in("post_id", eventIds)
+      : { data: [] },
   ]);
 
   const likedSet    = new Set((likedData.data ?? []).map((r) => r.post_id));
   const bookmarkSet = new Set((bookmarkData.data ?? []).map((r) => r.post_id));
+  const rsvpCounts   = countBy(rsvpCountData.data, "post_id");
+  const myRsvpSet    = new Set((myRsvpData.data ?? []).map((r) => r.post_id));
 
   return rawPosts.map(({ user_id, ...rest }) => ({
     ...rest,
     liked:      likedSet.has(rest.id),
     bookmarked: bookmarkSet.has(rest.id),
+    rsvp_count: rest.event_date ? (rsvpCounts[rest.id] ?? 0) : 0,
+    going:      rest.event_date ? myRsvpSet.has(rest.id) : false,
     is_mine:    !!user_id && user_id === userId,
   }));
 }
