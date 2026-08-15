@@ -35,6 +35,10 @@ export const env = {
   vapidPublicKey:       process.env.VAPID_PUBLIC_KEY,
   vapidPrivateKey:      process.env.VAPID_PRIVATE_KEY,
   vapidEmail:           process.env.VAPID_EMAIL || "mailto:najam.saqib7549@gmail.com",
+  // NASA Open APIs — optional; DEMO_KEY works out of the box at a low rate
+  // limit (fine given /apod is cached once per day), set NASA_API_KEY for
+  // a free personal key with a much higher limit.
+  nasaApiKey:           process.env.NASA_API_KEY || "DEMO_KEY",
 };
 
 export const isProd = env.nodeEnv === "production";
