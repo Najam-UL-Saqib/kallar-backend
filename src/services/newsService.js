@@ -42,8 +42,15 @@ function extractTag(block, tag) {
   return decodeEntities(val) || null;
 }
 
+// Cap the excerpt shown on-site — this is meant to be a preview that sends
+// readers to the source for the full article, not a substitute for it.
+const EXCERPT_MAX_CHARS = 220;
+
 // Minimal, dependency-free RSS 2.0 item extractor — deliberately not a full
-// XML parser, just enough structure to read <item><title>/<link>/<pubDate>.
+// XML parser, just enough structure to read <item><title>/<link>/<pubDate>/
+// <description>. <description> is only ever a short excerpt as published by
+// the source feed for preview purposes — we never fetch or store full
+// article bodies.
 function parseRssItems(xml, sourceName, limit) {
   const items = [];
   const itemRe = /<item[^>]*>([\s\S]*?)<\/item>/gi;
@@ -53,8 +60,18 @@ function parseRssItems(xml, sourceName, limit) {
     const title = extractTag(block, "title");
     const link  = extractTag(block, "link");
     if (!title || !link) continue;
+
+    let excerpt = extractTag(block, "description");
+    // Some feeds (Google News in particular) repeat the title verbatim or
+    // just wrap a bare link in <description> — not useful as a preview.
+    if (excerpt && (excerpt === title || excerpt.length < 15)) excerpt = null;
+    if (excerpt && excerpt.length > EXCERPT_MAX_CHARS) {
+      excerpt = excerpt.slice(0, EXCERPT_MAX_CHARS).trim() + "…";
+    }
+
     items.push({
       title,
+      excerpt,
       link,
       pubDate: extractTag(block, "pubDate"),
       source:  sourceName,
