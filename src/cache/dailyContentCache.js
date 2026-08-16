@@ -19,3 +19,10 @@ export async function getOrFetchDaily(key, fetcher) {
   _store.set(key, { date: today, value });
   return value;
 }
+
+// Drop a cached entry immediately — used after an admin edits content that
+// this cache is holding (e.g. trivia questions), so the change is visible
+// on the next request instead of waiting for the UTC day to roll over.
+export function invalidateDaily(key) {
+  _store.delete(key);
+}
