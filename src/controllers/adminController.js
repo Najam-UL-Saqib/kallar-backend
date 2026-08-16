@@ -9,7 +9,7 @@ import {
 } from "../services/adminService.js";
 import { listReports, deleteReport } from "../services/reportsService.js";
 import { uploadImageBuffer } from "../services/cloudinaryService.js";
-import { createEntry, updateEntry, deleteEntry, listDirectory } from "../services/directoryService.js";
+import { createEntry, updateEntry, deleteEntry, listDirectoryAdmin as listDirectoryAdminSvc, approveEntry } from "../services/directoryService.js";
 
 export const login = asyncHandler(async (req, res) => {
   const parsed = adminLoginSchema.safeParse(req.body);
@@ -84,7 +84,7 @@ export const uploadImage = asyncHandler(async (req, res) => {
 
 // Directory management
 export const listDirectoryAdmin = asyncHandler(async (req, res) => {
-  res.json(await listDirectory());
+  res.json(await listDirectoryAdminSvc());
 });
 
 export const createDirectoryEntry = asyncHandler(async (req, res) => {
@@ -97,6 +97,10 @@ export const updateDirectoryEntry = asyncHandler(async (req, res) => {
   const parsed = directorySchema.safeParse(req.body);
   if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message || "Invalid data");
   res.json(await updateEntry(req.params.id, parsed.data));
+});
+
+export const approveDirectoryEntry = asyncHandler(async (req, res) => {
+  res.json(await approveEntry(req.params.id));
 });
 
 export const deleteDirectoryEntry = asyncHandler(async (req, res) => {

@@ -27,6 +27,7 @@ router.post("/upload", imageUpload.single("image"), admin.uploadImage);
 router.get("/directory", admin.listDirectoryAdmin);
 router.post("/directory", admin.createDirectoryEntry);
 router.put("/directory/:id", admin.updateDirectoryEntry);
+router.patch("/directory/:id/approve", admin.approveDirectoryEntry);
 router.delete("/directory/:id", admin.deleteDirectoryEntry);
 
 // Users list — must be BEFORE the wildcard /:table route
