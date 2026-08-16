@@ -89,3 +89,19 @@ export const MAX_RAW_IMAGE_BYTES = 3 * 1024 * 1024; // 3 MB — raw upload ceili
 export const MAX_IMAGE_BYTES = 1 * 1024 * 1024; // 1 MB — post-compression ceiling
 export const MAX_USER_POSTS_PER_DAY = 5;
 export const MAX_USER_LISTINGS_PER_DAY = 5;
+
+// Admin-authored trivia questions — deliberately not user-submitted (unlike
+// directory listings), since a wrong "fact" presented as trivia is worse
+// than no trivia at all.
+export const triviaQuestionSchema = z
+  .object({
+    question: z.string().trim().min(1, "Question is required").max(300),
+    options: z.array(z.string().trim().min(1).max(100)).min(2, "At least 2 options").max(4, "At most 4 options"),
+    correct_index: z.number().int().min(0),
+    category: z.string().trim().min(1).max(40).optional().default("General"),
+    active: z.boolean().optional().default(true),
+  })
+  .refine((d) => d.correct_index < d.options.length, {
+    message: "correct_index must point at one of the options",
+    path: ["correct_index"],
+  });

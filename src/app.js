@@ -18,6 +18,7 @@ import directoryRoutes from "./routes/directory.routes.js";
 import pushRoutes from "./routes/push.routes.js";
 import discoverRoutes from "./routes/discover.routes.js";
 import marketplaceRoutes from "./routes/marketplace.routes.js";
+import triviaRoutes from "./routes/trivia.routes.js";
 
 export const app = express();
 
@@ -48,6 +49,7 @@ app.use("/api/directory", directoryRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/discover", discoverRoutes);
 app.use("/api/marketplace", marketplaceRoutes);
+app.use("/api/trivia", triviaRoutes);
 
 app.get("/healthz", (req, res) => res.json({ ok: true }));
 

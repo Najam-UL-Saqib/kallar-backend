@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../middleware/errorHandler.js";
 import { issueAdminSession, clearAdminSession } from "../middleware/adminAuth.js";
-import { adminLoginSchema, postAdminUpsertSchema, directorySchema, MAX_RAW_IMAGE_BYTES } from "../utils/validators.js";
+import { adminLoginSchema, postAdminUpsertSchema, directorySchema, triviaQuestionSchema, MAX_RAW_IMAGE_BYTES } from "../utils/validators.js";
 import {
   checkAdminPassword, adminListPosts, adminCreatePost, adminUpdatePost,
   adminDeletePost, adminListTable, adminDeleteRow, adminStats, adminPinPost,
@@ -10,6 +10,9 @@ import {
 import { listReports, deleteReport } from "../services/reportsService.js";
 import { uploadImageBuffer } from "../services/cloudinaryService.js";
 import { createEntry, updateEntry, deleteEntry, listDirectoryAdmin as listDirectoryAdminSvc, approveEntry } from "../services/directoryService.js";
+import {
+  adminListQuestions, createQuestion, updateQuestion, deleteQuestion,
+} from "../services/triviaService.js";
 
 export const login = asyncHandler(async (req, res) => {
   const parsed = adminLoginSchema.safeParse(req.body);
@@ -105,4 +108,25 @@ export const approveDirectoryEntry = asyncHandler(async (req, res) => {
 
 export const deleteDirectoryEntry = asyncHandler(async (req, res) => {
   res.json(await deleteEntry(req.params.id));
+});
+
+// Trivia question management — admin-authored only (see triviaQuestionSchema comment).
+export const listTriviaAdmin = asyncHandler(async (req, res) => {
+  res.json(await adminListQuestions());
+});
+
+export const createTriviaQuestion = asyncHandler(async (req, res) => {
+  const parsed = triviaQuestionSchema.safeParse(req.body);
+  if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message || "Invalid data");
+  res.status(201).json(await createQuestion(parsed.data));
+});
+
+export const updateTriviaQuestion = asyncHandler(async (req, res) => {
+  const parsed = triviaQuestionSchema.safeParse(req.body);
+  if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message || "Invalid data");
+  res.json(await updateQuestion(req.params.id, parsed.data));
+});
+
+export const deleteTriviaQuestion = asyncHandler(async (req, res) => {
+  res.json(await deleteQuestion(req.params.id));
 });
