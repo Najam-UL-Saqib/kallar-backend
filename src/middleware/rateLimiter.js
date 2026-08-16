@@ -72,12 +72,13 @@ setInterval(() => {
   for (const [k, v] of _memWindow) if (now > v.expiresAt) _memWindow.delete(k);
 }, 5 * 60_000).unref();
 
-export async function enforceRateLimit(userId, action) {
-  // Fast in-memory gate — avoids DB for clear spammers
-  if (memCheck(userId, action)) {
-    throw new HttpError(429, `Too many ${action} requests — please slow down.`);
-  }
-
+// Read-only: throws if the user is already at/over the limit for this
+// action, but doesn't consume a slot itself. Split out from
+// recordRateLimitEvent so a caller whose actual write can still fail
+// (e.g. a DB insert erroring out) can check-then-act-then-record instead
+// of recording before knowing whether the action actually succeeded —
+// otherwise failed attempts quietly eat into the user's quota.
+export async function checkRateLimit(userId, action) {
   const { windowMs, max } = LIMITS[action];
   const since = new Date(Date.now() - windowMs).toISOString();
 
@@ -92,7 +93,9 @@ export async function enforceRateLimit(userId, action) {
   if ((count ?? 0) >= max) {
     throw new HttpError(429, `Too many ${action} requests — please slow down and try again shortly.`);
   }
+}
 
+export async function recordRateLimitEvent(userId, action) {
   const { error: insErr } = await supabaseAdmin
     .from("rate_limit_events")
     .insert({ user_id: userId, action });
@@ -107,4 +110,18 @@ export async function enforceRateLimit(userId, action) {
       .then(() => {})
       .catch(() => {});
   }
+}
+
+// Convenience wrapper for the common case: check, then immediately record
+// (i.e. the action is assumed to happen right after this call succeeds).
+// Most call sites use this unchanged; anything whose write can still fail
+// after the check should use checkRateLimit + recordRateLimitEvent directly
+// so a failed write doesn't burn a quota slot.
+export async function enforceRateLimit(userId, action) {
+  // Fast in-memory gate — avoids DB for clear spammers
+  if (memCheck(userId, action)) {
+    throw new HttpError(429, `Too many ${action} requests — please slow down.`);
+  }
+  await checkRateLimit(userId, action);
+  await recordRateLimitEvent(userId, action);
 }
