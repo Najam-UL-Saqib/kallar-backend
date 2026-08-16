@@ -45,6 +45,22 @@ export async function getPublicProfile(userId) {
   return { ...data, post_count: count ?? 0 };
 }
 
+// Find people by name — powers the "find people" search so users can
+// look someone up and land on their public profile/posts.
+export async function searchProfiles(query, limit = 20) {
+  const q = query.trim();
+  if (!q) return [];
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("id, name, avatar_url, bio")
+    .not("name", "is", null)
+    .ilike("name", `%${q}%`)
+    .order("name")
+    .limit(limit);
+  if (error) throw new HttpError(500, error.message);
+  return data ?? [];
+}
+
 export async function getPublicUserPosts(userId, { page = 0, pageSize = 10 } = {}) {
   const from = page * pageSize;
   const { data, error } = await supabaseAdmin

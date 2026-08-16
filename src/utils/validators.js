@@ -51,6 +51,24 @@ export const directorySchema = z.object({
   description: z.string().trim().max(300).optional().nullable(),
 });
 
+// Categories a regular user can pick from when suggesting a directory listing.
+// Kept as a fixed enum (unlike the admin schema's free-text category) so
+// submissions stay tidy and easy to triage in the moderation queue.
+export const DIRECTORY_CATEGORIES = ["Shop", "Doctor", "Restaurant", "Service", "Education", "Other"];
+
+export const directorySubmitSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(120),
+    category: z.enum(DIRECTORY_CATEGORIES).optional().default("Other"),
+    phone: z.string().trim().max(30).optional().nullable(),
+    whatsapp: z.string().trim().max(30).optional().nullable(),
+    description: z.string().trim().max(300).optional().nullable(),
+  })
+  .refine((d) => !!(d.phone || d.whatsapp), {
+    message: "Add a phone or WhatsApp number so people can reach them",
+    path: ["phone"],
+  });
+
 export const MARKETPLACE_CATEGORIES = [
   "Electronics", "Furniture", "Vehicles", "Clothing",
   "Home & Garden", "Books & Hobbies", "Property", "Other",
