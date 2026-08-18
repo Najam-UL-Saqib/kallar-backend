@@ -87,10 +87,37 @@ async function fetchSource({ name, url }) {
   return parseRssItems(xml, name, ITEMS_PER_SOURCE);
 }
 
+// The Google News aggregator in particular pulls from tabloid-style outlets
+// that sometimes run sexual/vulgar headlines — not something this homepage
+// should surface unfiltered. Word-boundary matched for English so "Essex"/
+// "sextet" aren't caught by "sex"; plain substring match for Urdu script,
+// since \b word-boundary semantics don't apply cleanly to non-Latin scripts
+// in JS regex and these are distinct enough words that false positives are
+// unlikely.
+const BLOCKED_WORDS = [
+  "sex", "sexy", "porn", "nude", "naked", "xxx", "fuck", "shit", "bitch",
+  "slut", "whore", "orgasm", "erotic", "hookup", "boobs", "nipple",
+  "penis", "vagina", "masturbat",
+  "سیکس", "سیکسی", "فحش", "فحاشی", "عریاں", "عریانی", "ننگا", "ننگی",
+  "طوائف", "جسم فروشی", "بدکاری", "زناکاری",
+];
+const ASCII_WORD_RE = /^[a-z]+$/i;
+
+function containsBlockedWord(text) {
+  if (!text) return false;
+  return BLOCKED_WORDS.some((word) =>
+    ASCII_WORD_RE.test(word) ? new RegExp(`\\b${word}`, "i").test(text) : text.includes(word),
+  );
+}
+
+function isClean(item) {
+  return !containsBlockedWord(item.title) && !containsBlockedWord(item.excerpt);
+}
+
 export async function getUrduNews() {
   return getOrFetchWithTtl("urdu-news", NEWS_TTL_MS, async () => {
     const results = await Promise.allSettled(NEWS_SOURCES.map(fetchSource));
-    const items = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+    const items = results.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter(isClean);
     if (items.length === 0) throw new HttpError(502, "Couldn't load news right now");
 
     items.sort((a, b) => {
