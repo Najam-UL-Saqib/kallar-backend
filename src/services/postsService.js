@@ -25,7 +25,7 @@ function extractHashtags(text) {
 // event_date — attached here (not in attachStats) so it's computed
 // uniformly whether posts came from the in-memory cache or a fresh query,
 // since this is always the final step either way.
-async function buildPublicPosts(rawPosts, userId) {
+export async function buildPublicPosts(rawPosts, userId) {
   if (rawPosts.length === 0) return [];
   const ids = rawPosts.map((p) => p.id);
   const eventIds = rawPosts.filter((p) => p.event_date).map((p) => p.id);
@@ -52,6 +52,7 @@ async function buildPublicPosts(rawPosts, userId) {
 
   return rawPosts.map(({ user_id, ...rest }) => ({
     ...rest,
+    user_id:    user_id ?? null,
     liked:      likedSet.has(rest.id),
     bookmarked: bookmarkSet.has(rest.id),
     rsvp_count: rest.event_date ? (rsvpCounts[rest.id] ?? 0) : 0,
@@ -60,7 +61,7 @@ async function buildPublicPosts(rawPosts, userId) {
   }));
 }
 
-async function attachStats(posts) {
+export async function attachStats(posts) {
   if (posts.length === 0) return posts;
   const ids = posts.map((p) => p.id);
   const [likeData, commentData, shareData] = await Promise.all([
@@ -302,6 +303,5 @@ export async function createUserPost(userId, authorName, { title, content, categ
   }
 
   cache.addPost(data);
-  const { user_id, ...rest } = data;
-  return { ...rest, likes: 0, comments: 0, shares: 0, liked: false, bookmarked: false, is_mine: true };
+  return { ...data, likes: 0, comments: 0, shares: 0, liked: false, bookmarked: false, is_mine: true };
 }
