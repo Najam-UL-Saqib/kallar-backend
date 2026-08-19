@@ -26,5 +26,5 @@ export const publicProfile = asyncHandler(async (req, res) => {
 export const publicUserPosts = asyncHandler(async (req, res) => {
   const page     = Number(req.query.page)     || 0;
   const pageSize = Math.min(Number(req.query.pageSize) || 10, 20);
-  res.json(await getPublicUserPosts(req.params.userId, { page, pageSize }));
+  res.json(await getPublicUserPosts(req.params.userId, { page, pageSize }, req.userId));
 });

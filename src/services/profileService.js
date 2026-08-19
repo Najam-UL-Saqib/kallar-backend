@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { HttpError } from "../middleware/errorHandler.js";
 import { sanitizeText } from "../middleware/sanitize.js";
+import { attachStats, buildPublicPosts } from "./postsService.js";
 
 const COLS = "id, email, name, avatar_url, bio, created_at";
 
@@ -45,16 +46,17 @@ export async function getPublicProfile(userId) {
   return { ...data, post_count: count ?? 0 };
 }
 
-export async function getPublicUserPosts(userId, { page = 0, pageSize = 10 } = {}) {
+export async function getPublicUserPosts(userId, { page = 0, pageSize = 10 } = {}, viewerId) {
   const from = page * pageSize;
   const { data, error } = await supabaseAdmin
     .from("posts")
-    .select("id, author_name, title, content, image_url, category, source, created_at, views, pinned, event_date, poll_options")
+    .select("id, author_name, title, content, image_url, category, source, created_at, user_id, views, pinned, event_date, poll_options")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .range(from, from + pageSize - 1);
   if (error) throw new HttpError(500, error.message);
-  return (data ?? []).map((p) => ({ ...p, is_mine: false, liked: false, bookmarked: false, likes: 0, comments: 0, shares: 0 }));
+  const withStats = await attachStats(data ?? []);
+  return buildPublicPosts(withStats, viewerId);
 }
 
 export async function updateProfile(userId, { name, bio }) {
@@ -76,10 +78,11 @@ export async function getUserPosts(userId, { page = 0, pageSize = 10 } = {}) {
   const from = page * pageSize;
   const { data, error } = await supabaseAdmin
     .from("posts")
-    .select("id, author_name, title, content, image_url, category, source, created_at, views, pinned, event_date, poll_options")
+    .select("id, author_name, title, content, image_url, category, source, created_at, user_id, views, pinned, event_date, poll_options")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .range(from, from + pageSize - 1);
   if (error) throw new HttpError(500, error.message);
-  return (data ?? []).map((p) => ({ ...p, is_mine: true, liked: false, bookmarked: false, likes: 0, comments: 0, shares: 0 }));
+  const withStats = await attachStats(data ?? []);
+  return buildPublicPosts(withStats, userId);
 }

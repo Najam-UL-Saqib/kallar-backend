@@ -20,7 +20,7 @@ function extractHashtags(text) {
   return [...new Set(matches.map((t) => t.slice(1).toLowerCase()))];
 }
 
-async function buildPublicPosts(rawPosts, userId) {
+export async function buildPublicPosts(rawPosts, userId) {
   if (rawPosts.length === 0) return [];
   const ids = rawPosts.map((p) => p.id);
 
@@ -38,13 +38,14 @@ async function buildPublicPosts(rawPosts, userId) {
 
   return rawPosts.map(({ user_id, ...rest }) => ({
     ...rest,
+    user_id:    user_id ?? null,
     liked:      likedSet.has(rest.id),
     bookmarked: bookmarkSet.has(rest.id),
     is_mine:    !!user_id && user_id === userId,
   }));
 }
 
-async function attachStats(posts) {
+export async function attachStats(posts) {
   if (posts.length === 0) return posts;
   const ids = posts.map((p) => p.id);
   const [likeData, commentData, shareData] = await Promise.all([
@@ -258,6 +259,5 @@ export async function createUserPost(userId, authorName, { title, content, categ
   }
 
   cache.addPost(data);
-  const { user_id, ...rest } = data;
-  return { ...rest, likes: 0, comments: 0, shares: 0, liked: false, bookmarked: false, is_mine: true };
+  return { ...data, likes: 0, comments: 0, shares: 0, liked: false, bookmarked: false, is_mine: true };
 }
