@@ -1,0 +1,131 @@
+import { HttpError } from "../middleware/errorHandler.js";
+import { getOrFetchWithTtl } from "../cache/ttlCache.js";
+
+// Real Urdu-language outlets — free, no API key, no request quota, unlike
+// most "news API" products (which either require a signup+key, cap out at
+// ~100-200 requests/day on the free tier, or explicitly forbid production
+// use on their free plan). Both already publish in Urdu, so there's no
+// translation step needed.
+const NEWS_SOURCES = [
+  // BBC's Urdu-language edition — a single stable, authoritative source.
+  { name: "BBC Urdu", url: "https://feeds.bbci.co.uk/urdu/rss.xml" },
+  // Google News' Pakistan/Urdu edition — aggregates Dawn, Jang, Geo, Express
+  // and other local outlets, giving broader regional coverage than one site.
+  { name: "Google News (Pakistan)", url: "https://news.google.com/rss?hl=ur-PK&gl=PK&ceid=PK:ur" },
+];
+
+const NEWS_TTL_MS = 20 * 60_000; // 20 min — news should feel fresh, not hammer the feeds
+const ITEMS_PER_SOURCE = 8;
+const MAX_ITEMS = 20;
+
+// A generic User-Agent identifying a real browser — some feeds throttle
+// obviously-scripted clients more aggressively than a normal reader request.
+const UA = "Mozilla/5.0 (compatible; ApnaKallarSyedanBot/1.0; +https://apnakallarsyedan.com)";
+
+function decodeEntities(s) {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#0?39;/g, "'")
+    .replace(/<[^>]+>/g, "") // strip any residual markup (some feeds put HTML in <description>)
+    .trim();
+}
+
+function extractTag(block, tag) {
+  const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  if (!m) return null;
+  let val = m[1].trim();
+  const cdata = val.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
+  if (cdata) val = cdata[1].trim();
+  return decodeEntities(val) || null;
+}
+
+// Cap the excerpt shown on-site — this is meant to be a preview that sends
+// readers to the source for the full article, not a substitute for it.
+const EXCERPT_MAX_CHARS = 220;
+
+// Minimal, dependency-free RSS 2.0 item extractor — deliberately not a full
+// XML parser, just enough structure to read <item><title>/<link>/<pubDate>/
+// <description>. <description> is only ever a short excerpt as published by
+// the source feed for preview purposes — we never fetch or store full
+// article bodies.
+function parseRssItems(xml, sourceName, limit) {
+  const items = [];
+  const itemRe = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+  let m;
+  while ((m = itemRe.exec(xml)) && items.length < limit) {
+    const block = m[1];
+    const title = extractTag(block, "title");
+    const link  = extractTag(block, "link");
+    if (!title || !link) continue;
+
+    let excerpt = extractTag(block, "description");
+    // Some feeds (Google News in particular) repeat the title verbatim or
+    // just wrap a bare link in <description> — not useful as a preview.
+    if (excerpt && (excerpt === title || excerpt.length < 15)) excerpt = null;
+    if (excerpt && excerpt.length > EXCERPT_MAX_CHARS) {
+      excerpt = excerpt.slice(0, EXCERPT_MAX_CHARS).trim() + "…";
+    }
+
+    items.push({
+      title,
+      excerpt,
+      link,
+      pubDate: extractTag(block, "pubDate"),
+      source:  sourceName,
+    });
+  }
+  return items;
+}
+
+async function fetchSource({ name, url }) {
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) throw new Error(`${name} responded ${res.status}`);
+  const xml = await res.text();
+  return parseRssItems(xml, name, ITEMS_PER_SOURCE);
+}
+
+// The Google News aggregator in particular pulls from tabloid-style outlets
+// that sometimes run sexual/vulgar headlines — not something this homepage
+// should surface unfiltered. Word-boundary matched for English so "Essex"/
+// "sextet" aren't caught by "sex"; plain substring match for Urdu script,
+// since \b word-boundary semantics don't apply cleanly to non-Latin scripts
+// in JS regex and these are distinct enough words that false positives are
+// unlikely.
+const BLOCKED_WORDS = [
+  "sex", "sexy", "porn", "nude", "naked", "xxx", "fuck", "shit", "bitch",
+  "slut", "whore", "orgasm", "erotic", "hookup", "boobs", "nipple",
+  "penis", "vagina", "masturbat",
+  "سیکس", "سیکسی", "فحش", "فحاشی", "عریاں", "عریانی", "ننگا", "ننگی",
+  "طوائف", "جسم فروشی", "بدکاری", "زناکاری",
+];
+const ASCII_WORD_RE = /^[a-z]+$/i;
+
+function containsBlockedWord(text) {
+  if (!text) return false;
+  return BLOCKED_WORDS.some((word) =>
+    ASCII_WORD_RE.test(word) ? new RegExp(`\\b${word}`, "i").test(text) : text.includes(word),
+  );
+}
+
+function isClean(item) {
+  return !containsBlockedWord(item.title) && !containsBlockedWord(item.excerpt);
+}
+
+export async function getUrduNews() {
+  return getOrFetchWithTtl("urdu-news", NEWS_TTL_MS, async () => {
+    const results = await Promise.allSettled(NEWS_SOURCES.map(fetchSource));
+    const items = results.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter(isClean);
+    if (items.length === 0) throw new HttpError(502, "Couldn't load news right now");
+
+    items.sort((a, b) => {
+      const ta = a.pubDate ? Date.parse(a.pubDate) : 0;
+      const tb = b.pubDate ? Date.parse(b.pubDate) : 0;
+      return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
+    });
+
+    return { items: items.slice(0, MAX_ITEMS), updatedAt: new Date().toISOString() };
+  });
+}

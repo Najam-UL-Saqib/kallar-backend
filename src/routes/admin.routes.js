@@ -27,7 +27,14 @@ router.post("/upload", imageUpload.single("image"), admin.uploadImage);
 router.get("/directory", admin.listDirectoryAdmin);
 router.post("/directory", admin.createDirectoryEntry);
 router.put("/directory/:id", admin.updateDirectoryEntry);
+router.patch("/directory/:id/approve", admin.approveDirectoryEntry);
 router.delete("/directory/:id", admin.deleteDirectoryEntry);
+
+// Trivia question management
+router.get("/trivia", admin.listTriviaAdmin);
+router.post("/trivia", admin.createTriviaQuestion);
+router.put("/trivia/:id", admin.updateTriviaQuestion);
+router.delete("/trivia/:id", admin.deleteTriviaQuestion);
 
 // Users list — must be BEFORE the wildcard /:table route
 router.get("/users", admin.listUsers);

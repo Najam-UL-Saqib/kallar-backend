@@ -3,6 +3,7 @@ import { HttpError } from "../middleware/errorHandler.js";
 import { sanitizeText } from "../middleware/sanitize.js";
 import { MAX_USER_POSTS_PER_DAY } from "../utils/validators.js";
 import * as cache from "../cache/postCache.js";
+import { getOrFetchWithTtl } from "../cache/ttlCache.js";
 
 const FETCH_COLUMNS =
   "id, author_name, title, content, image_url, category, source, created_at, user_id, views, pinned, event_date, poll_options";
@@ -20,27 +21,42 @@ function extractHashtags(text) {
   return [...new Set(matches.map((t) => t.slice(1).toLowerCase()))];
 }
 
+// Event RSVP data is only fetched for posts that actually have an
+// event_date — attached here (not in attachStats) so it's computed
+// uniformly whether posts came from the in-memory cache or a fresh query,
+// since this is always the final step either way.
 export async function buildPublicPosts(rawPosts, userId) {
   if (rawPosts.length === 0) return [];
   const ids = rawPosts.map((p) => p.id);
+  const eventIds = rawPosts.filter((p) => p.event_date).map((p) => p.id);
 
-  const [likedData, bookmarkData] = await Promise.all([
+  const [likedData, bookmarkData, rsvpCountData, myRsvpData] = await Promise.all([
     userId
       ? supabaseAdmin.from("likes").select("post_id").eq("user_id", userId).in("post_id", ids)
       : { data: [] },
     userId
       ? supabaseAdmin.from("bookmarks").select("post_id").eq("user_id", userId).in("post_id", ids)
       : { data: [] },
+    eventIds.length > 0
+      ? supabaseAdmin.from("event_rsvps").select("post_id").in("post_id", eventIds)
+      : { data: [] },
+    (userId && eventIds.length > 0)
+      ? supabaseAdmin.from("event_rsvps").select("post_id").eq("user_id", userId).in("post_id", eventIds)
+      : { data: [] },
   ]);
 
   const likedSet    = new Set((likedData.data ?? []).map((r) => r.post_id));
   const bookmarkSet = new Set((bookmarkData.data ?? []).map((r) => r.post_id));
+  const rsvpCounts   = countBy(rsvpCountData.data, "post_id");
+  const myRsvpSet    = new Set((myRsvpData.data ?? []).map((r) => r.post_id));
 
   return rawPosts.map(({ user_id, ...rest }) => ({
     ...rest,
     user_id:    user_id ?? null,
     liked:      likedSet.has(rest.id),
     bookmarked: bookmarkSet.has(rest.id),
+    rsvp_count: rest.event_date ? (rsvpCounts[rest.id] ?? 0) : 0,
+    going:      rest.event_date ? myRsvpSet.has(rest.id) : false,
     is_mine:    !!user_id && user_id === userId,
   }));
 }
@@ -125,6 +141,34 @@ export async function listPosts({ page = 0, pageSize = 5, category, search, user
 
   const withStats = await attachStats(data ?? []);
   return buildPublicPosts(withStats, userId);
+}
+
+// Ranks posts from the last 7 days by engagement and returns the single
+// most-loved one — the raw pick (before per-viewer liked/bookmarked state)
+// is cached for everyone since it's identical regardless of who's asking.
+async function computeWeeklyTopPost() {
+  const since = new Date(Date.now() - 7 * DAY_MS).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("posts")
+    .select(FETCH_COLUMNS)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw new HttpError(500, error.message);
+  if (!data || data.length === 0) return null;
+
+  const withStats = await attachStats(data);
+  withStats.sort((a, b) => (b.likes + b.comments + b.shares) - (a.likes + a.comments + a.shares));
+  const top = withStats[0];
+  // Don't spotlight something nobody's actually engaged with yet
+  return top && top.likes > 0 ? top : null;
+}
+
+export async function getWeeklySpotlight(userId) {
+  const top = await getOrFetchWithTtl("weekly-spotlight", 10 * 60_000, computeWeeklyTopPost);
+  if (!top) return null;
+  const [result] = await buildPublicPosts([top], userId);
+  return result;
 }
 
 export async function getPost(id, userId) {
