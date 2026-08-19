@@ -29,8 +29,9 @@ export async function buildPublicPosts(rawPosts, userId) {
   if (rawPosts.length === 0) return [];
   const ids = rawPosts.map((p) => p.id);
   const eventIds = rawPosts.filter((p) => p.event_date).map((p) => p.id);
+  const authorIds = [...new Set(rawPosts.filter((p) => p.user_id).map((p) => p.user_id))];
 
-  const [likedData, bookmarkData, rsvpCountData, myRsvpData] = await Promise.all([
+  const [likedData, bookmarkData, rsvpCountData, myRsvpData, authorData] = await Promise.all([
     userId
       ? supabaseAdmin.from("likes").select("post_id").eq("user_id", userId).in("post_id", ids)
       : { data: [] },
@@ -43,16 +44,21 @@ export async function buildPublicPosts(rawPosts, userId) {
     (userId && eventIds.length > 0)
       ? supabaseAdmin.from("event_rsvps").select("post_id").eq("user_id", userId).in("post_id", eventIds)
       : { data: [] },
+    authorIds.length > 0
+      ? supabaseAdmin.from("profiles").select("id, avatar_url").in("id", authorIds)
+      : { data: [] },
   ]);
 
   const likedSet    = new Set((likedData.data ?? []).map((r) => r.post_id));
   const bookmarkSet = new Set((bookmarkData.data ?? []).map((r) => r.post_id));
   const rsvpCounts   = countBy(rsvpCountData.data, "post_id");
   const myRsvpSet    = new Set((myRsvpData.data ?? []).map((r) => r.post_id));
+  const avatarByAuthor = new Map((authorData.data ?? []).map((p) => [p.id, p.avatar_url]));
 
   return rawPosts.map(({ user_id, ...rest }) => ({
     ...rest,
-    user_id:    user_id ?? null,
+    user_id:           user_id ?? null,
+    author_avatar_url: user_id ? (avatarByAuthor.get(user_id) ?? null) : null,
     liked:      likedSet.has(rest.id),
     bookmarked: bookmarkSet.has(rest.id),
     rsvp_count: rest.event_date ? (rsvpCounts[rest.id] ?? 0) : 0,
